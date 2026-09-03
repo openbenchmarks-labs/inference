@@ -1,0 +1,408 @@
+runner:
+  local_run_root: runs/micro-single-task
+  commands:
+    smoke: openbench-inference smoke --workflow micro-single-task
+    run: openbench-inference run --workflow micro-single-task --full
+    watch: openbench-inference watch --workflow micro-single-task
+
+benchmark:
+  slug: inference-micro-single-task
+  name: Inference Micro Single-Task Benchmark
+  status: draft
+  objectives:
+    - Which provider makes a single user wait the least for the first visible answer token?
+    - Compare GLM 5.3 Flash on different inference providers under streaming, single-user load
+    - Measure serverless and shared endpoints only
+  non_goals:
+    - Measure reasoning quality
+    - Measure high-concurrency throughput or saturation behavior
+    - Measure multi-turn performance
+
+dataset:
+  source: data/micro-single-task
+  manifest: data/micro-single-task/manifest.json
+  available_items: 721
+  selected_items: 600
+  reuse_across_providers: true
+  selection:
+    method: deterministic_per_task_family_prefix
+    selected_items_per_task_family: 200
+    seed_inputs:
+      - benchmark.slug
+      - dataset release hash
+      - task family
+      - schedule algorithm version
+    persist_selected_ids_before_execution: true
+  tokenizer:
+    implementation: tiktoken
+    encoding: o200k_base
+    same_tokenizer_for_every_provider: true
+    lock_implementation_version_and_vocabulary_hash: true
+  task_families:
+    meeting-notes-lookup:
+      available_items: 237
+      selected_items: 200
+      input_tokens: 500-1000
+      output_schema:
+        answer: string
+      prompt_template: prompt_templates/meeting-notes.system.txt
+    ticket-triage:
+      available_items: 244
+      selected_items: 200
+      input_tokens: 50-100
+      output_schema:
+        category: string
+        priority: string
+      prompt_template: prompt_templates/ticket-triage.system.txt
+    contract-terms-extraction:
+      available_items: 240
+      selected_items: 200
+      input_tokens: 500-1000
+      output_schema:
+        agreement_type: string
+        effective_date: string
+        initial_term_end_date: string
+        auto_renews: boolean
+        renewal_term_months: number | null
+        non_renewal_notice_days: number | null
+        payment_terms_days: number | null
+        termination_for_convenience: boolean
+        termination_notice_days: number | null
+        security_incident_notice_hours: number | null
+      prompt_template: prompt_templates/contract-terms.system.txt
+
+providers:
+  model: GLM 5.3 Flash
+  protocol: openai-chat-completions
+  endpoint_class: serverless_or_shared
+  vendors:
+    Z.AI:
+      docs: https://docs.z.ai/api-reference/llm/chat-completion
+      api_key: ZAI_API_KEY
+      model_key: glm-5.3-flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    together:
+      docs: https://docs.together.ai/docs/inference/chat/overview
+      api_key: TOGETHER_API_KEY
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    fireworks:
+      docs: https://docs.fireworks.ai/api-reference/post-chatcompletions
+      api_key: FIREWORKS_API_KEY
+      model_key: accounts/fireworks/models/glm-5p3-flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    baseten:
+      docs: https://docs.baseten.co/reference/inference-api/chat-completions
+      api_key: BASETEN_API_KEY
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    telnyx:
+      docs: https://developers.telnyx.com/api-reference/openai-chat/create-a-chat-completion-openai-compatible
+      api_key: TELNYX_API_KEY
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    modal:
+      proxy_token_id: MODAL_PROXY_TOKEN_ID
+      proxy_token_secret: MODAL_PROXY_TOKEN_SECRET
+      url: https://openfunnel--ep-glm-5-3-flash-server.us-west.modal.direct/v1/chat/completions
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.45
+        output: 1.50
+    nebius:
+      docs: https://docs.tokenfactory.nebius.com/api-reference/inference/create-chat-completion
+      api_key: NEBIUS_API_KEY
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    parasail:
+      docs: https://docs.parasail.io/parasail-docs/api-reference/chat-completions
+      api_key: PARASAIL_API_KEY
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    novita:
+      docs: https://novita.ai/docs/api-reference/model-apis-llm-create-chat-completion
+      api_key: NOVITA_API_KEY
+      model_key: zai-org/glm-5.3-flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+    deepinfra:
+      docs: https://docs.deepinfra.com/api-reference/chat-completions/openai-chat-completions
+      api_key: DEEPINFRA_API_KEY
+      model_key: zai-org/GLM-5.3-Flash
+      pricing_usd_per_million_tokens:
+        input: 0.15
+        output: 0.50
+
+inference:
+  api: chat-completions
+  reasoning:
+    default_effort: low
+    provider_overrides: {}
+    comparability_note: every provider is sent the provider-equivalent configuration for reasoning effort low
+  streaming: true
+  stream_protocol: server_sent_events
+  temperature: 0
+  top_p: 1
+  top_k: disabled
+  presence_penalty: 0
+  frequency_penalty: 0
+  max_completion_tokens: 256
+  timeout_seconds: 20
+  max_attempts: 1
+  structured_output:
+    mode: json_object
+    schema_enforcement: local_strict
+    evaluate_reconstructed_final_answer: true
+  turns: 1
+
+execution_plan:
+  requests_per_provider: 600
+  total_provider_requests: 6000
+  question_rounds: 600
+  per_provider_concurrency: 1
+  maximum_global_concurrency: 10
+  simultaneous_provider_calls_per_question: true
+  wait_for_all_providers_before_next_question: true
+  terminal_outcomes_release_question_barrier:
+    - completed
+    - timeout
+    - http_error
+    - transport_error
+  task_family_schedule:
+    method: deterministic_round_robin
+    order:
+      - meeting-notes-lookup
+      - ticket-triage
+      - contract-terms-extraction
+  provider_launch_order:
+    method: deterministic_rotation_per_question
+    shared_release_barrier: true
+    record_actual_monotonic_start_time: true
+    record_launch_skew: true
+  connection_policy:
+    persistent_connection_pool_per_provider: true
+    hidden_warmup_requests: false
+  identical_schedule_across_providers: true
+  failed_items_are_not_replaced: true
+  client_environment:
+    record_execution_region: true
+    record_host_and_runtime_metadata: true
+    redact_secrets: true
+  metric_granularity:
+    primary:
+      - provider
+      - task_family
+    combined_provider_summary: pooled_balanced_requests
+
+stream_timing:
+  clock: monotonic
+  unit: milliseconds
+  request_start: immediately before handing the request to the HTTP transport
+  first_model_output:
+    event: first reasoning or visible-answer delta that brings its cumulative local-tokenizer count to at least one
+    metric: ttfo
+    population: requests with a non-empty visible answer delta
+  first_answer_token:
+    field: choices[0].delta.content
+    event: first visible answer delta that brings the cumulative local-tokenizer answer count to at least one
+    metric: ttfa
+  last_answer_token:
+    event: arrival of the final non-empty visible answer delta
+  end_to_end:
+    start: request_start
+    end: last_answer_token
+    metric: e2e_latency
+  reasoning_diagnostics:
+    reasoning_emission_rate: responses with at least one pre-answer reasoning token / responses with a TTFA sample
+    reasoning_token_metric: pre_answer_reasoning_tokens
+    no_visible_reasoning:
+      ttfo_equals_ttfa: true
+      pre_answer_reasoning_tokens: 0
+  ignored_for_first_token_timing:
+    - response headers without answer content
+    - SSE comments
+    - role-only deltas
+    - empty deltas
+    - usage-only chunks
+    - finish-only chunks
+    - data done marker
+  raw_stream_capture:
+    persist_every_parsed_event: true
+    persist_monotonic_offset: true
+    persist_redacted_event_payload: true
+    persist_reconstructed_reasoning: true
+    persist_reconstructed_answer: true
+
+rate_limit_policy:
+  http_429: failed_request
+  request_retry: false
+  quota_normalization: none
+  capture_retry_after: true
+  capture_rate_limit_headers: true
+  interpretation: results measure the single-user service available to the tested account at the recorded time and client location
+
+evaluation:
+  meeting-notes-lookup: canonical-answer match after defined normalization
+  ticket-triage: exact category and priority pair - no partial credit
+  contract-terms-extraction: exact set match and median correct fields returned scored separately
+  normalization_rules:
+    meeting-notes-lookup:
+      - reconstruct the complete visible answer stream
+      - parse answer as a string
+      - trim leading and trailing whitespace
+      - collapse repeated internal whitespace
+      - compare case-insensitively against the canonical answer and listed aliases
+    ticket-triage:
+      - reconstruct the complete visible answer stream
+      - compare category and priority as exact lowercase enum values
+    contract-terms-extraction:
+      - reconstruct the complete visible answer stream
+      - require every schema field
+      - compare strings and enum values exactly
+      - compare dates as ISO YYYY-MM-DD values
+      - compare numbers, booleans, and nulls by JSON type and value
+      - report both exact-object correctness and correct-field count
+  error_and_timeout_policy:
+    retries: none
+    timeout: failed_request
+    rate_limited_http_429: failed_request
+    other_http_4xx: failed_request
+    http_5xx: failed_request
+    transport_error: failed_request
+    malformed_json: invalid_result
+    schema_invalid: invalid_result
+    missing_required_field: invalid_result
+    runner_or_evaluator_error: invalidate_run
+
+metrics:
+  primary:
+    ttfo:
+      meaning: Time to first model output, reasoning or answer, in milliseconds
+      percentiles: [p50, p95, p99]
+      population: requests with a non-empty visible answer delta
+    ttfa:
+      meaning: Time to first answer token in milliseconds
+      percentiles: [p50, p95, p99]
+      population: requests with a non-empty visible answer delta
+    pre_answer_reasoning_tokens:
+      meaning: Locally tokenized reasoning emitted at or before the first answer-bearing event
+      percentiles: [p50, p95, p99]
+      population: requests with a TTFA sample
+    reasoning_emission_rate:
+      formula: responses_with_pre_answer_reasoning / responses_with_ttfa
+    e2e_latency:
+      meaning: End-to-end latency in milliseconds
+      percentiles: [p50, p95, p99]
+      population: requests with a non-empty complete visible answer
+    output_tokens_per_second:
+      meaning: Output tokens per second
+      percentiles: [p50, p95, p99]
+      higher_is_better: true
+      population: complete visible answers with at least two local-tokenizer tokens
+      formula: (visible_answer_token_count - 1) / (last_answer_token_time - first_answer_token_time)
+    task_success_rate:
+      formula: correct_results / submitted_requests
+    failure_rate:
+      formula: failed_requests / submitted_requests
+  failure_breakdown:
+    - timeout_rate
+    - http_429_rate
+    - other_http_4xx_rate
+    - http_5xx_rate
+    - transport_error_rate
+  ranking:
+    order_by: pooled_e2e_latency_p99 ascending
+  reporting_statistics:
+    report_sample_count: true
+    percentile_method: nearest_rank
+
+persistence:
+  local:
+    source_of_truth: true
+    raw_requests_and_stream_events: true
+    derived_metrics_recomputable: true
+
+smoke_run:
+  maximum_attempts: 2
+  cases_per_task_family: 1
+  requests_per_provider_per_attempt: 3
+  maximum_provider_requests_per_attempt: 30
+  per_provider_concurrency: 1
+  budget:
+    maximum_requests_per_attempt: 30
+    maximum_cost_usd_across_attempts: 5
+  acceptance_criteria:
+    runner_errors: 0
+    local_artifact_errors: 0
+    every_provider_completes_at_least_one_request_per_task_family: true
+    every_provider_returns_http_2xx_per_task_family: true
+    every_provider_returns_nonempty_answer_content_per_task_family: true
+    every_provider_returns_schema_valid_result_per_task_family: true
+    every_observed_reasoning_stream_is_timed_separately_from_answer_content: true
+    raw_result_count_matches_submitted_request_count: true
+    stream_events_reconstruct_final_answers: true
+    evaluations_recompute_from_raw_results: true
+    timing_metrics_recompute_from_raw_stream_events: true
+    database_writes: 0
+  environment: local
+
+reporting:
+  separate_table_per_task_family: true
+  combined_provider_summary: true
+  combined_summary_weighting: pooled_balanced_requests
+  rate_display: percentage
+  required_provider_metric_columns:
+    - ttfo_p50
+    - ttfo_p95
+    - ttfo_p99
+    - ttfa_p50
+    - ttfa_p95
+    - ttfa_p99
+    - pre_answer_reasoning_tokens_p50
+    - pre_answer_reasoning_tokens_p95
+    - pre_answer_reasoning_tokens_p99
+    - reasoning_emission_rate
+    - e2e_latency_p50
+    - e2e_latency_p95
+    - e2e_latency_p99
+    - output_tokens_per_second_p50
+    - output_tokens_per_second_p95
+    - output_tokens_per_second_p99
+    - task_success_rate
+    - failure_rate
+    - timeout_rate
+    - http_429_rate
+    - other_http_4xx_rate
+    - http_5xx_rate
+    - transport_error_rate
+  required_artifacts:
+    - run manifest
+    - immutable selected item and question schedule
+    - raw request and stream-event JSONL
+    - reconstructed response JSONL
+    - evaluated result JSONL
+    - metrics JSON
+    - paired comparison JSON
+    - readable smoke or full-run report
+    - failure log
+
+operations:
+  resumable: true
+  redact_secrets: true
+  database_writes_during_smoke: false
+  full_run_requires_human_approval: true
